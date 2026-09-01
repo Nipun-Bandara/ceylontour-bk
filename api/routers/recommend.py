@@ -1,71 +1,129 @@
 """POST /api/recommend.
 
-Mock data only. The real Sustainability Index lands on a later branch; the
-shape here is what the frontend builds against until then.
+Real data now. Destinations are read from Postgres, filtered on budget and
+duration, then scored by the Sustainability Index.
+
+The explanation string is deliberately left empty; F3 fills it in.
 """
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-from api.envelope import envelope
-from api.schemas.common import Envelope
-from api.schemas.recommend import RecommendData, RecommendRequest
+from api.database import get_db
+from api.envelope import envelope, meta_fields
+from api.models import Destination, DestinationFactor
+from api.schemas.common import FactorScores
+from api.schemas.recommend import (
+    ExclusionSummary,
+    RecommendData,
+    RecommendEnvelope,
+    RecommendMeta,
+    RecommendRequest,
+)
+from api.services.index import (
+    FACTOR_ORDER,
+    affordable,
+    apply_preference,
+    load_weights,
+    round_percentages,
+    score,
+)
 
 router = APIRouter(prefix="/api", tags=["recommend"])
 
 
-@router.post("/recommend", response_model=Envelope[RecommendData])
-def recommend(request: RecommendRequest) -> dict[str, Any]:
-    data = RecommendData(
-        results=[
-            {
-                "destination_id": 7,
-                "name": "Belihuloya",
-                "sustainability_score": 89,
-                "factors": {
-                    "environmental": 92,
-                    "community": 88,
-                    "crowd": 91,
-                    "infrastructure": 76,
-                    "suitability": 90,
-                },
-                "contributions": [
-                    {"factor": "environmental", "percent": 32, "type": "exact"},
-                    {"factor": "crowd", "percent": 25, "type": "exact"},
-                    {"factor": "community", "percent": 20, "type": "exact"},
-                    {"factor": "suitability", "percent": 15, "type": "exact"},
-                    {"factor": "infrastructure", "percent": 8, "type": "exact"},
-                ],
-                "explanation": (
-                    "Recommended mainly because of low visitor pressure and "
-                    "strong environmental conditions."
-                ),
-                "confidence": "measured",
-            },
-            {
-                "destination_id": 12,
-                "name": "Meemure",
-                "sustainability_score": 84,
-                "factors": {
-                    "environmental": 90,
-                    "community": 86,
-                    "crowd": 94,
-                    "infrastructure": 58,
-                    "suitability": 82,
-                },
-                "contributions": [
-                    {"factor": "crowd", "percent": 30, "type": "exact"},
-                    {"factor": "environmental", "percent": 28, "type": "exact"},
-                    {"factor": "community", "percent": 22, "type": "exact"},
-                    {"factor": "suitability", "percent": 14, "type": "exact"},
-                    {"factor": "infrastructure", "percent": 6, "type": "exact"},
-                ],
-                "explanation": (
-                    "Ranked below Belihuloya mainly because of infrastructure."
-                ),
-                "confidence": "estimated",
-            },
-        ]
+@router.post("/recommend", response_model=RecommendEnvelope)
+def recommend(
+    request: RecommendRequest, db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    # Raises InvalidInput for an unknown preference, which the app turns into
+    # a 422 rather than a 500.
+    weights = apply_preference(
+        load_weights()["weights"], request.sustainability_weight
     )
-    return envelope(data)
+
+    rows = db.execute(
+        select(Destination, DestinationFactor).outerjoin(
+            DestinationFactor,
+            DestinationFactor.destination_id == Destination.id,
+        )
+    ).all()
+
+    over_budget = 0
+    over_duration = 0
+    missing_factors = 0
+    excluded_total = 0
+    results = []
+
+    for destination, factors in rows:
+        # Budget and duration are filters applied before scoring. A
+        # destination that does not fit is excluded, not given a low score
+        # (features.md F2).
+        too_expensive = not affordable(destination.cost_band, request.budget_lkr)
+        too_long = destination.typical_days > request.duration_days
+        no_factors = factors is None
+
+        if too_expensive:
+            over_budget += 1
+        if too_long:
+            over_duration += 1
+        if no_factors:
+            missing_factors += 1
+
+        if too_expensive or too_long or no_factors:
+            excluded_total += 1
+            continue
+
+        values = {
+            factor: getattr(factors, factor) for factor in FACTOR_ORDER
+        }
+        total, percentages = score(values, weights)
+        percents = round_percentages(percentages)
+
+        results.append(
+            {
+                "destination_id": destination.id,
+                "name": destination.name,
+                "sustainability_score": round(total),
+                "factors": FactorScores(
+                    **{factor: round(values[factor]) for factor in FACTOR_ORDER}
+                ),
+                "contributions": [
+                    {
+                        "factor": factor,
+                        "percent": percents[factor],
+                        # Index contributions are computed exactly, unlike the
+                        # SHAP values on the risk endpoint.
+                        "type": "exact",
+                    }
+                    for factor in sorted(
+                        percents, key=lambda f: (-percents[f], f)
+                    )
+                ],
+                "explanation": "",
+                "confidence": factors.confidence,
+                # Sort key only, dropped by the response model.
+                "_score": total,
+            }
+        )
+
+    # Highest score first, name as a tie-break so the order is stable.
+    results.sort(key=lambda row: (-row["_score"], row["name"]))
+    for row in results:
+        del row["_score"]
+
+    return envelope(
+        RecommendData(results=results),
+        RecommendMeta(
+            **meta_fields(),
+            excluded=ExclusionSummary(
+                total=excluded_total,
+                over_budget=over_budget,
+                over_duration=over_duration,
+                missing_factors=missing_factors,
+            ),
+        ),
+    )

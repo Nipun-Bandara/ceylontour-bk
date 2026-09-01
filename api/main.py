@@ -24,6 +24,7 @@ from api.routers import (
     simulate,
 )
 from api.schemas.common import Envelope, ErrorResponse
+from api.services.index import InvalidInput
 
 app = FastAPI(
     title="CeylonTour API",
@@ -58,6 +59,14 @@ async def validation_error_handler(
     first = exc.errors()[0]
     field = ".".join(str(part) for part in first["loc"][1:]) or "body"
     return _error(422, "validation_error", f"{field}: {first['msg']}")
+
+
+@app.exception_handler(InvalidInput)
+async def invalid_input_handler(request: Request, exc: InvalidInput) -> JSONResponse:
+    # Input a schema cannot check on its own, such as a preference word that
+    # is not in config/weights.yaml. Still the caller's mistake, so 422 and
+    # the same code as any other validation failure, never a 500.
+    return _error(422, "validation_error", str(exc))
 
 
 @app.exception_handler(StarletteHTTPException)

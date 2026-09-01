@@ -8,6 +8,7 @@ alembic==1.14.0
 psycopg[binary]==3.2.3
 redis==5.2.1
 pandas==2.2.3
+pyyaml==6.0.2
 
 # Development / test only.
 pytest==8.3.4

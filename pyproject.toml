@@ -8,6 +8,11 @@ extend-exclude = ["api/migrations/versions"]
 # S bandit (rule 5 in CLAUDE.md: no f-string SQL), C4 comprehensions.
 select = ["E", "W", "F", "I", "B", "UP", "S", "C4"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency injection is written as a call in the default argument.
+# That is the documented way to do it, not the bug B008 is looking for.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path"]
+
 [tool.ruff.lint.per-file-ignores]
 # Asserts are how pytest works.
 "*/tests/*" = ["S101"]

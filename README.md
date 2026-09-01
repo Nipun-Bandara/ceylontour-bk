@@ -3,9 +3,10 @@
 Sustainable travel decision support for Sri Lanka. FastAPI service behind
 Postgres 16 and Redis 7.
 
-**Status: skeleton.** Every endpoint returns hardcoded mock data that matches
-the API contract in `plan.md` section 7. There is no Sustainability Index, no
-pressure model and no SHAP yet. The frontend can build against this today.
+**Status: F2 done.** `POST /api/recommend` runs the real Sustainability Index
+against the database. Every other endpoint still returns hardcoded mock data
+matching the API contract in `plan.md` section 7. There is no pressure model
+and no SHAP yet.
 
 ## Requirements
 
@@ -66,16 +67,29 @@ machine already holds the defaults.
 `--reload`. Editing a `.py` file restarts the server. No rebuild needed unless
 `requirements.txt` changes.
 
+## The Sustainability Index
+
+A transparent weighted sum, not a learned model, so every contribution can be
+shown exactly. `config/weights.yaml` holds the weights and the group shift;
+`config/cost_bands.yaml` holds the budget a cost band needs. Neither is
+hardcoded anywhere in the code. Editing a config file needs an app restart,
+because the files are read once and cached.
+
+Budget and duration are **filters applied before scoring**, not scored factors.
+A destination the user cannot afford is left out rather than given a low score,
+and `meta.excluded` on the response says how many went and why.
+
 ## Tests
 
-Inside the container:
+Run them inside the container. The `/api/recommend` tests need Postgres:
 
 ```bash
 docker compose exec api pytest
 ```
 
-Or on the host, without Docker, because nothing in the tests touches the
-database:
+They also run on the host, but the database-backed ones **skip** rather than
+fail if Postgres is not up, so a green run there does not mean everything
+passed. Check the skip count.
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/pytest
@@ -135,7 +149,8 @@ api/
 ├── config.py        # settings from the environment
 ├── envelope.py      # the {"data", "meta"} helper
 ├── database.py      # engine and session factory
-├── routers/         # one module per endpoint group, mocks only
+├── routers/         # one module per endpoint group
+├── services/        # index.py, the Sustainability Index
 ├── schemas/         # Pydantic request and response models
 ├── models/          # SQLAlchemy tables
 ├── migrations/      # Alembic
@@ -144,6 +159,9 @@ ml/
 ├── seed.py          # validate the CSVs, then load them
 ├── data/            # the dataset, plus where each value came from
 └── tests/
+config/
+├── weights.yaml     # index weights and the preference shift
+└── cost_bands.yaml  # budget each cost band needs
 ```
 
 ## Secrets
