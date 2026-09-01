@@ -10,7 +10,7 @@ select = ["E", "W", "F", "I", "B", "UP", "S", "C4"]
 
 [tool.ruff.lint.per-file-ignores]
 # Asserts are how pytest works.
-"api/tests/*" = ["S101"]
+"*/tests/*" = ["S101"]
 
 [tool.pytest.ini_options]
-testpaths = ["api/tests"]
+testpaths = ["api/tests", "ml/tests"]

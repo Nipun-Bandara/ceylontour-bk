@@ -27,12 +27,31 @@ Then create the tables:
 docker compose exec api alembic upgrade head
 ```
 
+Then load the dataset:
+
+```bash
+docker compose exec api python -m ml.seed
+```
+
 The API is on <http://localhost:8000>, interactive docs on
 <http://localhost:8000/docs>.
 
 ```bash
 curl http://localhost:8000/health
 ```
+
+## Dataset
+
+The three CSVs in `ml/data/` are the dataset. `python -m ml.seed` validates all
+three, and only writes to the database if every row passes. On a failure it
+prints each problem with its file and line number and writes nothing.
+
+Re-running is safe: destinations are matched by name and the other two tables
+upsert on their primary keys, so a re-run updates rather than duplicates.
+
+See `ml/data/README.md` for the column formats and where each value comes from.
+**The rows currently committed are examples with invented numbers**, kept only
+so the loader has something to run against.
 
 ### If a port is already taken
 
@@ -120,6 +139,10 @@ api/
 ├── schemas/         # Pydantic request and response models
 ├── models/          # SQLAlchemy tables
 ├── migrations/      # Alembic
+└── tests/
+ml/
+├── seed.py          # validate the CSVs, then load them
+├── data/            # the dataset, plus where each value came from
 └── tests/
 ```
 
