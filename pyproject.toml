@@ -1,0 +1,16 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+extend-exclude = ["api/migrations/versions"]
+
+[tool.ruff.lint]
+# E/W pycodestyle, F pyflakes, I import sorting, B bugbear, UP pyupgrade,
+# S bandit (rule 5 in CLAUDE.md: no f-string SQL), C4 comprehensions.
+select = ["E", "W", "F", "I", "B", "UP", "S", "C4"]
+
+[tool.ruff.lint.per-file-ignores]
+# Asserts are how pytest works.
+"api/tests/*" = ["S101"]
+
+[tool.pytest.ini_options]
+testpaths = ["api/tests"]
