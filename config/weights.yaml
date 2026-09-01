@@ -1,0 +1,28 @@
+# Sustainability Index weights. This file is the only place weights live.
+# Nothing in the code hardcodes one (CLAUDE.md hard rule 3).
+#
+# The index is a transparent weighted sum, not a learned model. That is a
+# deliberate choice: every contribution can be shown exactly.
+
+version: weights-v1
+
+# Base weights, from features.md F2. Must sum to 1.0.
+weights:
+  environmental: 0.30
+  crowd: 0.25
+  community: 0.20
+  suitability: 0.15
+  infrastructure: 0.10
+
+# The user's sustainability_weight input shifts weight between these two
+# groups. Within a group the split stays proportional.
+sustainability_group: [environmental, crowd, community]
+personal_group: [suitability, infrastructure]
+
+# How much weight moves from the personal group to the sustainability group.
+# A negative value moves it the other way. The keys here are the only values
+# sustainability_weight is allowed to take.
+shift:
+  low: -0.10
+  medium: 0.0
+  high: 0.10

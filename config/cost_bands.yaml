@@ -1,0 +1,17 @@
+# Budget needed for each cost_band, in LKR for the whole trip.
+#
+# Budget is a filter, not a scored factor: a destination the user cannot
+# afford is excluded rather than penalised (features.md F2). This file holds
+# the numbers that decide "cannot afford" so they are not buried in the code.
+#
+# WARNING: these figures are placeholders. Nobody has researched them yet.
+# They decide which destinations a user is shown, so they need real numbers
+# before the demo, and the source belongs in ml/data/README.md.
+
+version: cost-bands-v1
+
+# A destination is excluded when budget_lkr is below its band's minimum.
+minimum_budget_lkr:
+  low: 15000
+  medium: 40000
+  high: 90000

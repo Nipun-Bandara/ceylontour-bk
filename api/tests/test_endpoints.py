@@ -2,6 +2,9 @@
 
 model_validate does the shape checking. If a router ever returns a field the
 schema does not declare, or drops one it does, these fail.
+
+/api/recommend is no longer here. It reads the database now, so its tests live
+in test_recommend_endpoint.py.
 """
 
 from fastapi.testclient import TestClient
@@ -11,7 +14,6 @@ from api.schemas.auth import LoginData
 from api.schemas.common import Envelope
 from api.schemas.dashboard import DashboardSummaryData
 from api.schemas.destinations import DestinationDetail, DestinationListData
-from api.schemas.recommend import RecommendData
 from api.schemas.risk import RiskData
 from api.schemas.simulate import SimulateData
 
@@ -34,14 +36,6 @@ def test_health(client: TestClient) -> None:
     # Every response carries the versions, including this one.
     assert body["meta"]["model_version"]
     assert body["meta"]["index_version"]
-
-
-def test_recommend(client: TestClient) -> None:
-    response = client.post("/api/recommend", json=RECOMMEND_REQUEST)
-    assert response.status_code == 200
-    body = response.json()
-    Envelope[RecommendData].model_validate(body)
-    assert len(body["data"]["results"]) > 0
 
 
 def test_list_destinations(client: TestClient) -> None:
