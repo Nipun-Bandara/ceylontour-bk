@@ -3,14 +3,16 @@
 Sustainable travel decision support for Sri Lanka. FastAPI service behind
 Postgres 16 and Redis 7.
 
-**Status: F2, F3 and F4 done.** `POST /api/recommend` runs the real
-Sustainability Index with explanations, and `GET /api/risk/{id}` returns a real
-LightGBM forecast with a TreeSHAP breakdown. The remaining endpoints still
-return hardcoded mock data matching the API contract in `plan.md` section 7.
+**Status: F2, F3, F4 and F5 done.** `POST /api/recommend` runs the real
+Sustainability Index with explanations, `GET /api/risk/{id}` returns a real
+LightGBM forecast with a TreeSHAP breakdown, and `GET /api/alternatives/{id}`
+suggests similar destinations under less pressure. Destinations, simulate,
+dashboard and auth still return hardcoded mock data matching the API contract
+in `plan.md` section 7.
 
-`GET /api/risk/{id}` needs a trained model. Until `ml/train_pressure.py` has
-been run it answers 503 with a message saying so, rather than inventing a
-number.
+`GET /api/risk/{id}` and `GET /api/alternatives/{id}` need a trained model.
+Until `ml/train_pressure.py` has been run they answer 503 with a message saying
+so, rather than inventing a number.
 
 ## Requirements
 
@@ -183,7 +185,7 @@ api/
 ├── envelope.py      # the {"data", "meta"} helper
 ├── database.py      # engine and session factory
 ├── routers/         # one module per endpoint group
-├── services/        # index.py, explain.py, forecast.py
+├── services/        # index.py, explain.py, forecast.py, similarity.py
 ├── schemas/         # Pydantic request and response models
 ├── models/          # SQLAlchemy tables
 ├── migrations/      # Alembic
