@@ -3,8 +3,9 @@
 model_validate does the shape checking. If a router ever returns a field the
 schema does not declare, or drops one it does, these fail.
 
-/api/recommend is no longer here. It reads the database now, so its tests live
-in test_recommend_endpoint.py.
+/api/recommend and /api/risk are no longer here. They read the database and
+the trained model now, so their tests live in test_recommend_endpoint.py and
+test_risk_endpoint.py.
 """
 
 from fastapi.testclient import TestClient
@@ -14,7 +15,6 @@ from api.schemas.auth import LoginData
 from api.schemas.common import Envelope
 from api.schemas.dashboard import DashboardSummaryData
 from api.schemas.destinations import DestinationDetail, DestinationListData
-from api.schemas.risk import RiskData
 from api.schemas.simulate import SimulateData
 
 RECOMMEND_REQUEST = {
@@ -50,16 +50,6 @@ def test_get_destination(client: TestClient) -> None:
     body = response.json()
     Envelope[DestinationDetail].model_validate(body)
     assert body["data"]["id"] == 7
-
-
-def test_get_risk(client: TestClient) -> None:
-    response = client.get("/api/risk/7", params={"month": 9})
-    assert response.status_code == 200
-    body = response.json()
-    Envelope[RiskData].model_validate(body)
-    # SHAP values are estimates and must be labelled as such.
-    assert all(c["type"] == "estimated" for c in body["data"]["contributions"])
-    assert body["data"]["scope"] == "regional"
 
 
 def test_get_alternatives(client: TestClient) -> None:

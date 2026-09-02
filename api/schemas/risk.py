@@ -14,7 +14,10 @@ class RiskData(BaseModel):
     predicted_pressure: float = Field(ge=0, le=100)
     band: Band
     # SLTDA data is regional, so the forecast cannot be claimed as per-site.
-    # Carried in the response so the UI cannot forget to say it (features.md F4).
-    scope: Literal["regional"] = "regional"
+    # Carried in the response as a sentence rather than a flag, so the UI
+    # cannot forget to say it and cannot paraphrase it (features.md F4).
+    scope: Literal["regional indicator, not site-specific"] = (
+        "regional indicator, not site-specific"
+    )
     # Always type "estimated"; these are SHAP values, not exact contributions.
     contributions: list[Contribution]

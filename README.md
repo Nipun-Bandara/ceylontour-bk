@@ -3,10 +3,14 @@
 Sustainable travel decision support for Sri Lanka. FastAPI service behind
 Postgres 16 and Redis 7.
 
-**Status: F2 done.** `POST /api/recommend` runs the real Sustainability Index
-against the database. Every other endpoint still returns hardcoded mock data
-matching the API contract in `plan.md` section 7. There is no pressure model
-and no SHAP yet.
+**Status: F2, F3 and F4 done.** `POST /api/recommend` runs the real
+Sustainability Index with explanations, and `GET /api/risk/{id}` returns a real
+LightGBM forecast with a TreeSHAP breakdown. The remaining endpoints still
+return hardcoded mock data matching the API contract in `plan.md` section 7.
+
+`GET /api/risk/{id}` needs a trained model. Until `ml/train_pressure.py` has
+been run it answers 503 with a message saying so, rather than inventing a
+number.
 
 ## Requirements
 
@@ -104,6 +108,10 @@ full set of features.
 Artifacts are gitignored. A model card is only true of the data it came from,
 so committing one would publish accuracy numbers nobody measured.
 
+The API loads the model once at the first risk request and caches every
+`(region, month)` answer for the life of the process, so **restart the API
+after retraining** or it will keep serving the old model.
+
 ## Tests
 
 Run them inside the container. The `/api/recommend` tests need Postgres:
@@ -175,7 +183,7 @@ api/
 ├── envelope.py      # the {"data", "meta"} helper
 ├── database.py      # engine and session factory
 ├── routers/         # one module per endpoint group
-├── services/        # index.py, the Sustainability Index
+├── services/        # index.py, explain.py, forecast.py
 ├── schemas/         # Pydantic request and response models
 ├── models/          # SQLAlchemy tables
 ├── migrations/      # Alembic
@@ -190,7 +198,8 @@ ml/
 └── tests/
 config/
 ├── weights.yaml     # index weights and the preference shift
-└── cost_bands.yaml  # budget each cost band needs
+├── cost_bands.yaml  # budget each cost band needs
+└── bands.yaml       # traffic-light thresholds for visitor pressure
 ```
 
 ## Secrets

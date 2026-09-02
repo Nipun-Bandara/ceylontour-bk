@@ -19,6 +19,10 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+import lightgbm as lgb
+import numpy as np
+import pandas as pd
+
 from api.services.index import score
 
 # Plain-language labels. A tourist reads these, not "environmental: 32%".
@@ -52,6 +56,25 @@ SINGLE_FACTOR_TEMPLATE = "Recommended mainly because of {factor_1}."
 
 # F3: top five factors shown, no more. Longer lists stop being explanations.
 MAX_CONTRIBUTIONS = 5
+
+# Plain-language names for the pressure model's features.
+#
+# month, month_sin and month_cos all map to the same label on purpose. They are
+# one idea split across three columns for the model's benefit, and three bars
+# all reading "time of year" would be a broken panel. SHAP values are additive,
+# so summing them into one bar is legitimate rather than a fudge.
+SHAP_FEATURE_LABELS = {
+    "month": "time of year",
+    "month_sin": "time of year",
+    "month_cos": "time of year",
+    "is_peak_season": "peak season",
+    "occupancy_lag_1": "occupancy last month",
+    "occupancy_lag_2": "occupancy two months ago",
+    "occupancy_lag_12": "occupancy in the same month last year",
+    "occupancy_rolling_3": "average of the last three months",
+    "arrivals_trend": "recent trend in arrivals",
+    "region": "the region itself",
+}
 
 
 def label(factor: str) -> str:
@@ -107,6 +130,63 @@ def top_n(
 ) -> list[dict[str, Any]]:
     """At most n contributions. F3 caps the panel at five."""
     return [dict(item) for item in items[:n]]
+
+
+def shap_label(feature: str) -> str:
+    """The friendly label for a model feature."""
+    return SHAP_FEATURE_LABELS.get(feature, feature)
+
+
+def shap_breakdown(
+    booster: lgb.Booster,
+    model_input: pd.DataFrame,
+    feature_names: Sequence[str],
+    n: int = MAX_CONTRIBUTIONS,
+) -> list[dict[str, Any]]:
+    """TreeSHAP for one prediction, as the top n drivers.
+
+    This is TreeSHAP, computed by LightGBM's own `pred_contrib=True`, which is
+    the same exact algorithm as the shap package's TreeExplainer. Using the
+    built-in keeps a heavy dependency out of the API and keeps inference well
+    inside the 500ms budget.
+
+    Everything here is type "estimated", never "exact". These are a model's
+    attribution of its own output, not a calculation anyone can reproduce with
+    a weight and a factor value the way the index contributions can be. The UI
+    has to render the two differently, and a judge on an XAI theme will look
+    for exactly that.
+
+    Percentages are shares of the top n drivers, so they sum to 100 and fill
+    the panel. They are not shares of every feature: the ones below the cut
+    are left out, not folded in.
+    """
+    # One row in, so one row of contributions out. The trailing column is the
+    # model's base value, not a feature, so it is dropped.
+    contributions = np.asarray(booster.predict(model_input, pred_contrib=True))[0]
+    values = contributions[: len(feature_names)]
+
+    # Magnitude is what ranks a driver; direction is not shown in this panel.
+    grouped: dict[str, float] = {}
+    for name, value in zip(feature_names, values, strict=True):
+        grouped[shap_label(name)] = grouped.get(shap_label(name), 0.0) + abs(
+            float(value)
+        )
+
+    ranked = sorted(grouped, key=lambda label: (-grouped[label], label))[:n]
+    total = sum(grouped[label] for label in ranked)
+
+    if total <= 0:
+        # The model used nothing to decide, so no driver outranks another.
+        even = 100.0 / len(ranked) if ranked else 0.0
+        shares = dict.fromkeys(ranked, even)
+    else:
+        shares = {label: 100.0 * grouped[label] / total for label in ranked}
+
+    rounded = _largest_remainder(shares)
+    return [
+        {"factor": label, "percent": rounded[label], "type": "estimated"}
+        for label in sorted(rounded, key=lambda label: (-rounded[label], label))
+    ]
 
 
 def sentence(
