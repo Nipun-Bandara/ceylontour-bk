@@ -3,13 +3,11 @@
 model_validate does the shape checking. If a router ever returns a field the
 schema does not declare, or drops one it does, these fail.
 
-recommend, risk, alternatives and simulate are no longer here. They read the
-database now, so their tests live in test_recommend_endpoint.py,
-test_risk_endpoint.py, test_alternatives_endpoint.py and
-test_simulate_endpoint.py.
+recommend, risk, alternatives, simulate and destinations are no longer here.
+They read the database now, so their tests live in the per-endpoint modules
+beside this one.
 
-What is left is the endpoints still returning mocks: destinations, dashboard
-and auth.
+What is left is the endpoints still returning mocks: dashboard and auth.
 """
 
 from fastapi.testclient import TestClient
@@ -17,7 +15,6 @@ from fastapi.testclient import TestClient
 from api.schemas.auth import LoginData
 from api.schemas.common import Envelope
 from api.schemas.dashboard import DashboardSummaryData
-from api.schemas.destinations import DestinationDetail, DestinationListData
 
 RECOMMEND_REQUEST = {
     "budget_lkr": 50000,
@@ -38,20 +35,6 @@ def test_health(client: TestClient) -> None:
     # Every response carries the versions, including this one.
     assert body["meta"]["model_version"]
     assert body["meta"]["index_version"]
-
-
-def test_list_destinations(client: TestClient) -> None:
-    response = client.get("/api/destinations")
-    assert response.status_code == 200
-    Envelope[DestinationListData].model_validate(response.json())
-
-
-def test_get_destination(client: TestClient) -> None:
-    response = client.get("/api/destinations/7")
-    assert response.status_code == 200
-    body = response.json()
-    Envelope[DestinationDetail].model_validate(body)
-    assert body["data"]["id"] == 7
 
 
 def test_dashboard_summary(client: TestClient) -> None:
