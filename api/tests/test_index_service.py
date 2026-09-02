@@ -2,6 +2,9 @@
 
 Pure arithmetic, no database and no HTTP. These are the ones that prove the
 index behaves the way the proposal claims it does.
+
+Rounding contributions to whole percentages belongs to the explanation layer,
+so those tests live in test_explain_service.py.
 """
 
 import pytest
@@ -11,7 +14,6 @@ from api.services.index import (
     InvalidInput,
     apply_preference,
     load_weights,
-    round_percentages,
     score,
 )
 
@@ -70,13 +72,6 @@ def test_contributions_sum_to_the_total_score() -> None:
 
     rebuilt = sum(percent / 100.0 * total for percent in percentages.values())
     assert rebuilt == pytest.approx(total, abs=0.01)
-
-
-def test_rounded_contributions_still_sum_to_100() -> None:
-    """F3 promises the bars add up. Rounding must not break that."""
-    weights = apply_preference(base_weights(), "high")
-    _, percentages = score(BASE_FACTORS, weights)
-    assert sum(round_percentages(percentages).values()) == 100
 
 
 def test_score_is_between_0_and_100() -> None:

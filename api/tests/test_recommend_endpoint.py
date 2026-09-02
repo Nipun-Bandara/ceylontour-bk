@@ -88,8 +88,7 @@ def test_returns_the_contract_shape(
     assert all(c["type"] == "exact" for c in result["contributions"])
     # Percentages must add up, or the bars in F3 will not.
     assert sum(c["percent"] for c in result["contributions"]) == 100
-    # F3 fills this in later.
-    assert result["explanation"] == ""
+    assert result["explanation"].startswith("Recommended mainly because of ")
     assert result["confidence"] == "measured"
 
 
@@ -177,6 +176,57 @@ def test_results_are_ranked_highest_score_first(
     ]
     scores = [row["sustainability_score"] for row in body["data"]["results"]]
     assert scores == sorted(scores, reverse=True)
+
+
+def test_second_ranked_destination_gets_the_ranked_below_template(
+    empty_destinations: Session, db_client: TestClient
+) -> None:
+    add_destination(empty_destinations, "Best", environmental=95.0)
+    add_destination(empty_destinations, "Second", environmental=50.0)
+    add_destination(empty_destinations, "Third", environmental=10.0)
+
+    results = db_client.post("/api/recommend", json=REQUEST).json()["data"]["results"]
+
+    assert [row["name"] for row in results] == ["Best", "Second", "Third"]
+    assert results[0]["explanation"].startswith("Recommended mainly because of ")
+    # Each lower result is explained against the one directly above it.
+    assert results[1]["explanation"].startswith("Ranked below Best mainly because of ")
+    assert results[2]["explanation"].startswith(
+        "Ranked below Second mainly because of "
+    )
+
+
+def test_every_result_has_a_non_empty_explanation(
+    empty_destinations: Session, db_client: TestClient
+) -> None:
+    """F3: no result is shown without a reason."""
+    for number in range(5):
+        add_destination(
+            empty_destinations,
+            f"Destination {number}",
+            environmental=float(20 * number + 5),
+        )
+
+    results = db_client.post("/api/recommend", json=REQUEST).json()["data"]["results"]
+
+    assert len(results) == 5
+    for row in results:
+        assert row["explanation"].endswith(".")
+        assert len(row["explanation"]) > 20
+        assert len(row["contributions"]) <= 5
+        assert sum(c["percent"] for c in row["contributions"]) == 100
+
+
+def test_explanations_are_repeatable(
+    empty_destinations: Session, db_client: TestClient
+) -> None:
+    """Same request, same words. Nothing here is generated."""
+    add_destination(empty_destinations, "Belihuloya")
+    add_destination(empty_destinations, "Meemure", environmental=60.0)
+
+    first = db_client.post("/api/recommend", json=REQUEST).json()["data"]
+    second = db_client.post("/api/recommend", json=REQUEST).json()["data"]
+    assert first == second
 
 
 def test_twenty_destinations_score_in_under_two_seconds(
