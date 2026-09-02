@@ -1,0 +1,21 @@
+# Traffic-light bands for visitor pressure (features.md F4).
+#
+# Thresholds live here rather than in the code so the boundary between
+# "medium" and "high" is a decision anyone can find and argue about, not a
+# number buried in a function.
+#
+# Each band runs from just above the previous band's max up to its own max.
+# So low is 0-40, medium is 41-70, high is 71-100.
+
+version: bands-v1
+
+bands:
+  - name: low
+    max: 40
+    colour: green
+  - name: medium
+    max: 70
+    colour: yellow
+  - name: high
+    max: 100
+    colour: red

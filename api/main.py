@@ -24,6 +24,7 @@ from api.routers import (
     simulate,
 )
 from api.schemas.common import Envelope, ErrorResponse
+from api.services.forecast import ForecastUnavailable
 from api.services.index import InvalidInput
 
 app = FastAPI(
@@ -67,6 +68,16 @@ async def invalid_input_handler(request: Request, exc: InvalidInput) -> JSONResp
     # is not in config/weights.yaml. Still the caller's mistake, so 422 and
     # the same code as any other validation failure, never a 500.
     return _error(422, "validation_error", str(exc))
+
+
+@app.exception_handler(ForecastUnavailable)
+async def forecast_unavailable_handler(
+    request: Request, exc: ForecastUnavailable
+) -> JSONResponse:
+    # The model is not trained, or a region has too little history. Nothing
+    # the caller did wrong, and not a crash either, so 503 with a message
+    # saying what is missing rather than a 500 or a made-up number.
+    return _error(503, "forecast_unavailable", str(exc))
 
 
 @app.exception_handler(StarletteHTTPException)
