@@ -79,6 +79,31 @@ Budget and duration are **filters applied before scoring**, not scored factors.
 A destination the user cannot afford is left out rather than given a low score,
 and `meta.excluded` on the response says how many went and why.
 
+## The pressure model
+
+Trains from the database, in two commands:
+
+```bash
+docker compose exec api python ml/train_pressure.py
+```
+
+```bash
+docker compose exec api python ml/evaluate.py
+```
+
+Training writes the model to `ml/artifacts/`. Evaluation measures it on the
+held-out year against a seasonal-average baseline and writes
+`ml/artifacts/model_card.md`. The card reports whichever won, including when
+the baseline did.
+
+Both fail with a clear message and write nothing if there is not enough
+history. Right now there is not: `region_pressure_history` holds one month, and
+the model needs at least 13 consecutive months per region before any row has a
+full set of features.
+
+Artifacts are gitignored. A model card is only true of the data it came from,
+so committing one would publish accuracy numbers nobody measured.
+
 ## Tests
 
 Run them inside the container. The `/api/recommend` tests need Postgres:
@@ -157,7 +182,11 @@ api/
 └── tests/
 ml/
 ├── seed.py          # validate the CSVs, then load them
+├── features.py      # feature engineering for the pressure model
+├── train_pressure.py
+├── evaluate.py      # metrics and the model card
 ├── data/            # the dataset, plus where each value came from
+├── artifacts/       # generated model files, gitignored
 └── tests/
 config/
 ├── weights.yaml     # index weights and the preference shift

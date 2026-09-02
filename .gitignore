@@ -8,6 +8,11 @@ __pycache__/
 .venv/
 venv/
 
+# Generated model artifacts. A model card is only true of the data it came
+# from, so committing one would publish accuracy numbers nobody measured.
+ml/artifacts/*
+!ml/artifacts/README.md
+
 # Tooling caches
 .pytest_cache/
 .ruff_cache/
