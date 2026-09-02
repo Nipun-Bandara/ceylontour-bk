@@ -3,12 +3,12 @@
 Sustainable travel decision support for Sri Lanka. FastAPI service behind
 Postgres 16 and Redis 7.
 
-**Status: F2, F3, F4 and F5 done.** `POST /api/recommend` runs the real
-Sustainability Index with explanations, `GET /api/risk/{id}` returns a real
-LightGBM forecast with a TreeSHAP breakdown, and `GET /api/alternatives/{id}`
-suggests similar destinations under less pressure. Destinations, simulate,
-dashboard and auth still return hardcoded mock data matching the API contract
-in `plan.md` section 7.
+**Status: F2 to F6 done.** `POST /api/recommend` runs the real Sustainability
+Index with explanations, `GET /api/risk/{id}` returns a real LightGBM forecast
+with a TreeSHAP breakdown, `GET /api/alternatives/{id}` suggests similar
+destinations under less pressure, and `POST /api/simulate` re-runs the index
+with adjusted inputs. Destinations, dashboard and auth still return hardcoded
+mock data matching the API contract in `plan.md` section 7.
 
 `GET /api/risk/{id}` and `GET /api/alternatives/{id}` need a trained model.
 Until `ml/train_pressure.py` has been run they answer 503 with a message saying
