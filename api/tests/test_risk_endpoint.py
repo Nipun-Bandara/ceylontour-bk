@@ -1,17 +1,14 @@
 """GET /api/risk/{id}?month= against a real model and real history.
 
-The model is trained once for the module into a temp directory, from the same
-synthetic series that gets loaded into the database. Nothing here reads the
-committed artefact, so these pass whether or not anyone has trained one.
+The model and the synthetic series come from conftest, which trains once per
+run into a temp directory. Nothing here reads the committed artefact, so these
+pass whether or not anyone has trained one.
 """
 
-import json
-import math
 import time
 from collections.abc import Iterator
 from pathlib import Path
 
-import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -20,94 +17,13 @@ from api.models import Destination, RegionPressureHistory
 from api.schemas.common import Envelope
 from api.schemas.risk import RiskData
 from api.services import forecast as forecast_service
-from ml.features import (
-    PEAK_SEASON_MONTHS,
-    REGION,
-    as_categorical,
-    build_features,
-    model_frame,
-    time_split,
-)
-from ml.train_pressure import FEATURE_COLUMNS, train_model
-
-REGIONS = ["Sabaragamuwa", "Uva"]
-YEARS = range(2020, 2025)
-
-
-def synthetic_rows() -> list[dict]:
-    """A believable monthly series. Kept here so these tests do not depend on
-    how much real data has been collected yet."""
-    rows = []
-    for offset, region in enumerate(REGIONS):
-        for year in YEARS:
-            for month in range(1, 13):
-                seasonal = 18 * math.sin(2 * math.pi * (month - 3) / 12)
-                peak = 9 if month in PEAK_SEASON_MONTHS else 0
-                occupancy = 45 + offset * 8 + seasonal + peak
-                rows.append(
-                    {
-                        "region": region,
-                        "year": year,
-                        "month": month,
-                        "occupancy_rate": round(float(occupancy), 2),
-                        "arrivals": int(900 * (1 + occupancy / 100)),
-                        "guest_nights": int(2100 * (1 + occupancy / 100)),
-                    }
-                )
-    return rows
-
-
-@pytest.fixture(scope="module")
-def trained_artifacts(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]:
-    """Train a real LightGBM model once, into a temp directory."""
-    directory = tmp_path_factory.mktemp("artifacts")
-    frame = model_frame(build_features(pd.DataFrame(synthetic_rows())))
-    categories = sorted(frame[REGION].astype(str).unique())
-    train, _, test_year = time_split(as_categorical(frame, categories))
-
-    booster = train_model(train)
-    model_path = directory / "pressure-test.txt"
-    features_path = directory / "pressure-test.features.json"
-    booster.save_model(str(model_path))
-    features_path.write_text(
-        json.dumps(
-            {
-                "model_version": "pressure-test-v1",
-                "features": FEATURE_COLUMNS,
-                "categorical_features": [REGION],
-                "region_categories": categories,
-                "target": "occupancy_rate",
-                "test_year": test_year,
-            }
-        )
-    )
-    return {"model": model_path, "features": features_path}
 
 
 @pytest.fixture
 def risk_client(
-    trained_artifacts: dict[str, Path],
-    db_session: Session,
-    db_client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
+    forecast_ready: Session, db_client: TestClient
 ) -> Iterator[TestClient]:
-    """A client pointed at the temp model, with history and a destination."""
-    monkeypatch.setattr(forecast_service, "MODEL_PATH", trained_artifacts["model"])
-    monkeypatch.setattr(
-        forecast_service, "FEATURES_PATH", trained_artifacts["features"]
-    )
-    # The model is cached for the process, so it has to be dropped between
-    # tests or the first test's model would leak into the rest.
-    forecast_service.clear_cache()
-
-    db_session.query(RegionPressureHistory).delete()
-    for row in synthetic_rows():
-        db_session.add(RegionPressureHistory(**row))
-    db_session.flush()
-
     yield db_client
-
-    forecast_service.clear_cache()
 
 
 @pytest.fixture
@@ -263,18 +179,9 @@ def test_untrained_model_returns_503_not_500(
 
 
 def test_region_with_too_little_history_returns_503(
-    trained_artifacts: dict[str, Path],
-    db_session: Session,
-    db_client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
+    forecast_ready: Session, db_client: TestClient
 ) -> None:
-    monkeypatch.setattr(forecast_service, "MODEL_PATH", trained_artifacts["model"])
-    monkeypatch.setattr(
-        forecast_service, "FEATURES_PATH", trained_artifacts["features"]
-    )
-    forecast_service.clear_cache()
-
-    db_session.query(RegionPressureHistory).delete()
+    forecast_ready.query(RegionPressureHistory).delete()
     destination = Destination(
         name="Nowhere",
         lat=7.0,
@@ -286,13 +193,10 @@ def test_region_with_too_little_history_returns_503(
         cost_band="low",
         typical_days=2,
     )
-    db_session.add(destination)
-    db_session.flush()
+    forecast_ready.add(destination)
+    forecast_ready.flush()
 
-    response = db_client.get(
-        f"/api/risk/{destination.id}", params={"month": 9}
-    )
+    response = db_client.get(f"/api/risk/{destination.id}", params={"month": 9})
 
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "forecast_unavailable"
-    forecast_service.clear_cache()

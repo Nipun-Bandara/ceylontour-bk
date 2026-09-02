@@ -3,14 +3,17 @@
 model_validate does the shape checking. If a router ever returns a field the
 schema does not declare, or drops one it does, these fail.
 
-/api/recommend and /api/risk are no longer here. They read the database and
-the trained model now, so their tests live in test_recommend_endpoint.py and
-test_risk_endpoint.py.
+/api/recommend, /api/risk and /api/alternatives are no longer here. They read
+the database and the trained model now, so their tests live in
+test_recommend_endpoint.py, test_risk_endpoint.py and
+test_alternatives_endpoint.py.
+
+What is left is the endpoints still returning mocks: destinations, simulate,
+dashboard and auth.
 """
 
 from fastapi.testclient import TestClient
 
-from api.schemas.alternatives import AlternativesData
 from api.schemas.auth import LoginData
 from api.schemas.common import Envelope
 from api.schemas.dashboard import DashboardSummaryData
@@ -50,14 +53,6 @@ def test_get_destination(client: TestClient) -> None:
     body = response.json()
     Envelope[DestinationDetail].model_validate(body)
     assert body["data"]["id"] == 7
-
-
-def test_get_alternatives(client: TestClient) -> None:
-    response = client.get("/api/alternatives/3")
-    assert response.status_code == 200
-    body = response.json()
-    Envelope[AlternativesData].model_validate(body)
-    assert len(body["data"]["alternatives"]) == 3
 
 
 def test_simulate(client: TestClient) -> None:
