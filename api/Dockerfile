@@ -5,6 +5,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# LightGBM links against the OpenMP runtime, which the slim image does not
+# ship. Without it `import lightgbm` fails with a missing libgomp.so.1.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Requirements are copied first so the layer caches between source edits.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
