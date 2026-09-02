@@ -163,32 +163,6 @@ def score(
     return total, percentages
 
 
-def round_percentages(percentages: Mapping[str, float]) -> dict[str, int]:
-    """Round contribution percents to whole numbers that still sum to 100.
-
-    The API contract types percent as an integer, but rounding each value on
-    its own can produce bars that add up to 99 or 101, and F3 promises they
-    sum to 100. This gives the leftover points to the values with the largest
-    fractional part, which is the standard way of doing it.
-    """
-    if not percentages:
-        return {}
-
-    floors = {factor: int(value) for factor, value in percentages.items()}
-    remainder = 100 - sum(floors.values())
-
-    # Largest fractional part first, name as a tie-break so the result is the
-    # same every run.
-    ranked = sorted(
-        percentages,
-        key=lambda factor: (-(percentages[factor] - floors[factor]), factor),
-    )
-    for factor in ranked[:remainder]:
-        floors[factor] += 1
-
-    return floors
-
-
 def affordable(cost_band: str, budget_lkr: int) -> bool:
     """Whether budget_lkr covers a destination in this cost band."""
     minimums = load_cost_bands()["minimum_budget_lkr"]

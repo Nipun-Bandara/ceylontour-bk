@@ -23,12 +23,12 @@ from api.schemas.recommend import (
     RecommendMeta,
     RecommendRequest,
 )
+from api.services.explain import contributions, sentence, top_n
 from api.services.index import (
     FACTOR_ORDER,
     affordable,
     apply_preference,
     load_weights,
-    round_percentages,
     score,
 )
 
@@ -80,8 +80,7 @@ def recommend(
         values = {
             factor: getattr(factors, factor) for factor in FACTOR_ORDER
         }
-        total, percentages = score(values, weights)
-        percents = round_percentages(percentages)
+        total, _ = score(values, weights)
 
         results.append(
             {
@@ -91,18 +90,9 @@ def recommend(
                 "factors": FactorScores(
                     **{factor: round(values[factor]) for factor in FACTOR_ORDER}
                 ),
-                "contributions": [
-                    {
-                        "factor": factor,
-                        "percent": percents[factor],
-                        # Index contributions are computed exactly, unlike the
-                        # SHAP values on the risk endpoint.
-                        "type": "exact",
-                    }
-                    for factor in sorted(
-                        percents, key=lambda f: (-percents[f], f)
-                    )
-                ],
+                # Always "exact" here: computed from the weights, not estimated.
+                "contributions": top_n(contributions(values, weights)),
+                # Filled in below, once the ranking is known.
                 "explanation": "",
                 "confidence": factors.confidence,
                 # Sort key only, dropped by the response model.
@@ -112,7 +102,13 @@ def recommend(
 
     # Highest score first, name as a tie-break so the order is stable.
     results.sort(key=lambda row: (-row["_score"], row["name"]))
-    for row in results:
+
+    # The sentence depends on position, so it can only be written after the
+    # sort. Everything below the top is explained against the result directly
+    # above it.
+    for position, row in enumerate(results):
+        higher = results[position - 1]["name"] if position > 0 else None
+        row["explanation"] = sentence(row["contributions"], higher)
         del row["_score"]
 
     return envelope(
