@@ -2,16 +2,30 @@
 
 from pydantic import BaseModel, Field
 
-from api.schemas.common import Confidence, Contribution, FactorScores, Meta
+from api.schemas.common import (
+    MAX_DURATION_DAYS,
+    Confidence,
+    Contribution,
+    CrowdPreference,
+    FactorScores,
+    Interest,
+    Meta,
+)
 
 
 class RecommendRequest(BaseModel):
-    budget_lkr: int = Field(ge=0)
-    duration_days: int = Field(ge=1)
-    interest: str
-    # Left as free strings on purpose; the allowed values are decided by the
-    # dataset, not by this branch.
-    crowd_preference: str
+    # extra="forbid" so a misspelled field is a 422 rather than a value that
+    # silently does nothing.
+    model_config = {"extra": "forbid"}
+
+    # A zero budget is not a budget.
+    budget_lkr: int = Field(gt=0)
+    duration_days: int = Field(ge=1, le=MAX_DURATION_DAYS)
+    interest: Interest
+    crowd_preference: CrowdPreference
+    # Deliberately still a string: the allowed values are the shift keys in
+    # config/weights.yaml, and an enum here would hardcode them in two places
+    # (CLAUDE.md hard rule 3). The service validates it and returns 422.
     sustainability_weight: str
     travel_month: int = Field(ge=1, le=12)
 

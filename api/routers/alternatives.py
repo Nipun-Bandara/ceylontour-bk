@@ -8,7 +8,7 @@ the list with a poor match (features.md F5).
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -16,7 +16,7 @@ from api.database import get_db
 from api.envelope import envelope
 from api.models import Destination
 from api.schemas.alternatives import AlternativesData
-from api.schemas.common import Envelope
+from api.schemas.common import MAX_DURATION_DAYS, Envelope
 from api.services.forecast import ForecastUnavailable, forecast
 from api.services.index import affordable
 from api.services.similarity import (
@@ -34,10 +34,12 @@ MAX_ALTERNATIVES = 3
 
 @router.get("/{destination_id}", response_model=Envelope[AlternativesData])
 def get_alternatives(
-    destination_id: int,
+    destination_id: int = Path(gt=0),
     # Optional, but when supplied an alternative must never break them.
-    budget_lkr: int | None = Query(default=None, ge=0),
-    duration_days: int | None = Query(default=None, ge=1),
+    budget_lkr: int | None = Query(default=None, gt=0),
+    duration_days: int | None = Query(
+        default=None, ge=1, le=MAX_DURATION_DAYS
+    ),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     source = db.get(Destination, destination_id)

@@ -10,7 +10,7 @@ can never disagree with the risk screen about what colour a destination is.
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -100,7 +100,7 @@ def list_destinations(db: Session = Depends(get_db)) -> dict[str, Any]:
 
 @router.get("/{destination_id}", response_model=Envelope[DestinationDetail])
 def get_destination(
-    destination_id: int, db: Session = Depends(get_db)
+    destination_id: int = Path(gt=0), db: Session = Depends(get_db)
 ) -> dict[str, Any]:
     destination = db.get(Destination, destination_id)
     if destination is None:

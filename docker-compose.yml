@@ -2,9 +2,12 @@ services:
   db:
     image: postgres:16
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-ceylontour}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ceylontour}
-      POSTGRES_DB: ${POSTGRES_DB:-ceylontour}
+      # No :- defaults. A committed default password is a credential in the
+      # repo, and compose fails loudly if .env is missing instead of silently
+      # standing up a database everyone knows the password to.
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
     ports:
       # Host port only, for psql and GUI clients. Override in .env if another
       # project already holds 5432 on your machine.
@@ -14,7 +17,7 @@ services:
     healthcheck:
       # The api service waits on this, so it must not start before the
       # database can actually answer a query.
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ceylontour} -d ${POSTGRES_DB:-ceylontour}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
