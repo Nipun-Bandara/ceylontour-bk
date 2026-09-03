@@ -81,6 +81,15 @@ else
     fi
 fi
 
+# RELOAD=1 is the development switch. Set only by docker-compose.yml, so a
+# developer gets the same migrate-seed-train sequence as production and then a
+# reloading server instead of gunicorn. Keeping one script means `docker
+# compose up` on a clean machine cannot end up with an empty database.
+if [ "${RELOAD:-0}" = "1" ]; then
+    say "starting uvicorn with --reload on ${BIND}"
+    exec uvicorn api.main:app --host "${BIND%:*}" --port "${BIND##*:}" --reload
+fi
+
 say "starting gunicorn on ${BIND} with ${WORKERS} uvicorn workers"
 exec gunicorn api.main:app \
     --worker-class uvicorn.workers.UvicornWorker \

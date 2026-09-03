@@ -14,6 +14,7 @@ lightgbm==4.5.0
 passlib[argon2]==1.7.4
 PyJWT==2.10.1
 slowapi==0.1.9
+gunicorn==23.0.0
 
 # Development / test only.
 pytest==8.3.4
