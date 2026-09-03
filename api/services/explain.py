@@ -189,6 +189,46 @@ def shap_breakdown(
     ]
 
 
+def global_shap_importance(
+    booster: lgb.Booster,
+    frame: pd.DataFrame,
+    feature_names: Sequence[str],
+) -> list[dict[str, Any]]:
+    """How much each feature drives the model overall, not on one prediction.
+
+    Mean absolute TreeSHAP value across every row it is given, grouped into the
+    same plain-language labels as the per-prediction breakdown and normalised
+    so the shares sum to 1.0. That makes it a chart the dashboard can render
+    without knowing anything about occupancy units.
+
+    This is genuine global SHAP, averaged from the same values the risk
+    endpoint returns, rather than LightGBM's split-count importance. The two
+    can disagree, and only one of them is what the rest of the app shows.
+    """
+    if frame.empty:
+        return []
+
+    contributions = np.asarray(booster.predict(frame, pred_contrib=True))
+    # Trailing column is the base value, not a feature.
+    values = np.abs(contributions[:, : len(feature_names)]).mean(axis=0)
+
+    grouped: dict[str, float] = {}
+    for name, value in zip(feature_names, values, strict=True):
+        grouped[shap_label(name)] = grouped.get(shap_label(name), 0.0) + float(value)
+
+    total = sum(grouped.values())
+    if total <= 0:
+        share = 1.0 / len(grouped) if grouped else 0.0
+        normalised = dict.fromkeys(grouped, share)
+    else:
+        normalised = {label: value / total for label, value in grouped.items()}
+
+    return [
+        {"feature": label, "importance": round(normalised[label], 4)}
+        for label in sorted(normalised, key=lambda label: (-normalised[label], label))
+    ]
+
+
 def sentence(
     items: Sequence[Mapping[str, Any]], destination_name: str | None = None
 ) -> str:
