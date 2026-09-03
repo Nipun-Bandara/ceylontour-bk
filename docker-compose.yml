@@ -37,9 +37,14 @@ services:
     build:
       context: .
       dockerfile: api/Dockerfile
-    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    # No command override: the image runs ./bootstrap.sh, which migrates,
+    # seeds and then starts a reloading uvicorn because RELOAD=1. One path for
+    # development and production means a clean clone cannot come up against an
+    # unmigrated database.
     env_file:
       - .env
+    environment:
+      RELOAD: "1"
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:

@@ -15,10 +15,19 @@ RUN apt-get update \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# docker-compose mounts the source over this in development. The COPY is here
-# so the image also runs on its own on the demo machine.
 COPY . .
+
+# Runs as a normal user, never root. uid 1000 matches the usual first host
+# account, so the bind mount used in development stays writable and the
+# training script can still save an artefact.
+RUN useradd --create-home --uid 1000 app \
+    && mkdir -p /app/ml/artifacts \
+    && chown -R app:app /app
+USER app
 
 EXPOSE 8000
 
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# gunicorn supervises the workers and restarts one that dies; the uvicorn
+# worker class is what actually speaks ASGI. Development overrides this in
+# docker-compose.yml with `uvicorn --reload`.
+CMD ["./bootstrap.sh"]
