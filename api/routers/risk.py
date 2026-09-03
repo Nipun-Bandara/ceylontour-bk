@@ -6,12 +6,13 @@ pressure figure itself is regional, which the response says in as many words.
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from sqlalchemy.orm import Session
 
 from api.database import get_db
 from api.envelope import envelope
 from api.models import Destination
+from api.rate_limit import limiter, risk_limit
 from api.schemas.common import Envelope, Meta
 from api.schemas.risk import RiskData
 from api.services.forecast import forecast, model_version
@@ -21,8 +22,12 @@ router = APIRouter(prefix="/api/risk", tags=["risk"])
 
 
 @router.get("/{destination_id}", response_model=Envelope[RiskData])
+@limiter.limit(risk_limit)
 def get_risk(
-    destination_id: int,
+    # slowapi reads the client address off this, so it has to be declared
+    # even though the handler never touches it.
+    request: Request,
+    destination_id: int = Path(gt=0),
     # Out of range is a 422 before this function runs.
     month: int = Query(ge=1, le=12),
     db: Session = Depends(get_db),

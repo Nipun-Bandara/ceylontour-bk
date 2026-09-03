@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from api import rate_limit
 from api.database import engine, get_db
 from api.main import app
 from api.models import RegionPressureHistory
@@ -36,6 +37,18 @@ from ml.train_pressure import train_model
 # in one of these.
 SYNTHETIC_REGIONS = ["Sabaragamuwa", "Central", "Uva"]
 SYNTHETIC_YEARS = range(2020, 2025)
+
+
+@pytest.fixture(autouse=True)
+def _clear_rate_limits() -> Iterator[None]:
+    """Every test starts with an empty rate-limit counter.
+
+    Without this the suite's own traffic would eventually trip the limiter and
+    fail an unrelated test, and the order tests ran in would start to matter.
+    """
+    rate_limit.reset()
+    yield
+    rate_limit.reset()
 
 
 @pytest.fixture

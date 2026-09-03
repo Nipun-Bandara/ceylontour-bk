@@ -8,13 +8,14 @@ The explanation string is deliberately left empty; F3 fills it in.
 
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from api.database import get_db
 from api.envelope import envelope, meta_fields
 from api.models import Destination, DestinationFactor
+from api.rate_limit import limiter, recommend_limit
 from api.schemas.common import FactorScores
 from api.schemas.recommend import (
     ExclusionSummary,
@@ -36,13 +37,17 @@ router = APIRouter(prefix="/api", tags=["recommend"])
 
 
 @router.post("/recommend", response_model=RecommendEnvelope)
+@limiter.limit(recommend_limit)
 def recommend(
-    request: RecommendRequest, db: Session = Depends(get_db)
+    # slowapi reads the client address off `request`; the body is `payload`.
+    request: Request,
+    payload: RecommendRequest,
+    db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     # Raises InvalidInput for an unknown preference, which the app turns into
     # a 422 rather than a 500.
     weights = apply_preference(
-        load_weights()["weights"], request.sustainability_weight
+        load_weights()["weights"], payload.sustainability_weight
     )
 
     rows = db.execute(
@@ -62,8 +67,8 @@ def recommend(
         # Budget and duration are filters applied before scoring. A
         # destination that does not fit is excluded, not given a low score
         # (features.md F2).
-        too_expensive = not affordable(destination.cost_band, request.budget_lkr)
-        too_long = destination.typical_days > request.duration_days
+        too_expensive = not affordable(destination.cost_band, payload.budget_lkr)
+        too_long = destination.typical_days > payload.duration_days
         no_factors = factors is None
 
         if too_expensive:

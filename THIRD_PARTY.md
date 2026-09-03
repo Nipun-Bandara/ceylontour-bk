@@ -12,3 +12,4 @@ licence (CodeSplash Guidelines 7.3).
 | passlib | 1.7.4 | BSD 2-Clause | argon2 password hashing (`api/services/security.py`) |
 | argon2-cffi | 25.1.0 | MIT | The argon2 implementation passlib calls |
 | PyJWT | 2.10.1 | MIT | Signing and decoding the authority JWT |
+| slowapi | 0.1.9 | MIT | Per-client rate limiting on recommend and risk |

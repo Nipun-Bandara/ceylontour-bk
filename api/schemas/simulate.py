@@ -9,7 +9,9 @@ from api.schemas.common import Contribution, FactorScores
 
 
 class SimulateRequest(BaseModel):
-    destination_id: int
+    model_config = {"extra": "forbid"}
+
+    destination_id: int = Field(gt=0)
     # All three are slider positions, 0 to 100, not real-world quantities.
     # expected_tourists is "how busy", not a headcount.
     expected_tourists: int = Field(ge=0, le=100)
