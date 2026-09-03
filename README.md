@@ -7,9 +7,9 @@ Postgres 16 and Redis 7.
 Index with explanations, `GET /api/risk/{id}` returns a real LightGBM forecast
 with a TreeSHAP breakdown, `GET /api/alternatives/{id}` suggests similar
 destinations under less pressure, `POST /api/simulate` re-runs the index with
-adjusted inputs, and `GET /api/destinations` feeds the map. Dashboard and auth
-still return hardcoded mock data matching the API contract in `plan.md`
-section 7.
+adjusted inputs, `GET /api/destinations` feeds the map, and
+`GET /api/dashboard/summary` is behind a real JWT login. **No endpoint returns
+mock data any more.**
 
 `GET /api/risk/{id}`, `GET /api/alternatives/{id}` and the two destinations
 endpoints need a trained model, because a marker's colour is a pressure band.
@@ -74,6 +74,35 @@ machine already holds the defaults.
 `docker compose` mounts the repo into the api container and runs uvicorn with
 `--reload`. Editing a `.py` file restarts the server. No rebuild needed unless
 `requirements.txt` changes.
+
+## The authority login
+
+The dashboard is the only endpoint behind auth. Create its account from the
+environment:
+
+```bash
+docker compose exec api python -m api.seed_user
+```
+
+It reads `AUTHORITY_EMAIL` and `AUTHORITY_PASSWORD` from `.env`, hashes the
+password with argon2, and refuses to run if the password is blank or shorter
+than 12 characters. Re-running updates the password rather than creating a
+second account. The plain password is never printed or stored.
+
+Then log in for a token, good for 30 minutes:
+
+```bash
+curl -X POST http://localhost:8000/api/auth/login -H 'content-type: application/json' -d '{"email":"authority@ceylontour.lk","password":"..."}'
+```
+
+A tourist-role account can log in but gets a 403 from the dashboard. No token
+at all gets a 401.
+
+**Set `JWT_SECRET` before deploying.** The default is a placeholder:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
 
 ## The Sustainability Index
 
@@ -187,7 +216,8 @@ api/
 ├── envelope.py      # the {"data", "meta"} helper
 ├── database.py      # engine and session factory
 ├── routers/         # one module per endpoint group
-├── services/        # index.py, explain.py, forecast.py, similarity.py
+├── seed_user.py     # create the authority account from the environment
+├── services/        # index, explain, forecast, similarity, security
 ├── schemas/         # Pydantic request and response models
 ├── models/          # SQLAlchemy tables
 ├── migrations/      # Alembic

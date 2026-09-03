@@ -35,7 +35,14 @@ class Settings(BaseSettings):
     # Deployment must set JWT_SECRET.
     jwt_secret: str = "change-me"  # noqa: S105
     jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 60
+    # Short on purpose. A dashboard token that lives for hours is a token
+    # someone leaves open on a demo laptop (features.md F8).
+    jwt_expire_minutes: int = 30
+
+    # The single authority account, created by `python -m api.seed_user`.
+    # The password is never stored; only its argon2 hash reaches the database.
+    authority_email: str = "authority@ceylontour.lk"
+    authority_password: str = ""  # noqa: S105
 
 
 settings = Settings()
